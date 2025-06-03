@@ -1,0 +1,24 @@
+#
+# For a description of the syntax of this configuration file,
+# see tools/kconfiglib/kconfig-language.txt.
+#
+
+
+mainmenu "Phytium Baremetal Configuration"
+
+	menu "Project Configuration"
+
+		menu " Baremetal Configuration"
+		config TARGET_NAME
+			string "Build Target Name"
+			default "openamp_core0"
+			help
+				Build Target name for the demo
+
+	endmenu
+
+endmenu
+
+
+source "$(SDK_DIR)/standalone.kconfig"
+
