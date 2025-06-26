@@ -113,7 +113,7 @@ return 0;
 // 打开 I2C 总线
 int MLX90640_I2CInit(void) {
     if (fd >= 0) return 0;
-    fd = open("/dev/i2c-2", O_RDWR);
+    fd = open("/dev/i2c-2", O_RDWR);    // 这个是根据目前在飞腾派上插入红外传感器的接口定的，如果换接口了记得要查看飞腾公司的接口定义来更改，也可以问ai如何查看连接的是哪个口，让他给你命令
     return (fd < 0) ? -1 : 0;
 }
 

@@ -29,7 +29,7 @@ int main(int argc, char **argv)
         return -1;
     }
 	
-	// 2) 设置帧率与模式
+	// 2) 设置帧率与模式 这几个都是厂商给的库函数，不要改 具体看函数来源的话如果是在vscode里面可以直接ctrl+点击函数名，其他编辑器也有类似功能
     status = MLX90640_SetRefreshRate(MLX90640_ADDR, RefreshRate);
     if (status != 0) printf("SetRefreshRate error %d\n", status);
     status = MLX90640_SetChessMode(MLX90640_ADDR);
@@ -48,11 +48,13 @@ int main(int argc, char **argv)
         return -1;
     }
 
-    const useconds_t delay_us = 1000000 / 4;//4Hz
+    const useconds_t delay_us = 1000000 / 4;// 依照4Hz的帧率计算延时
+    // 4) 设置伪彩色映射
     cv::namedWindow("MLX90640 Thermal", cv::WINDOW_NORMAL);
     cv::resizeWindow("MLX90640 Thermal", 800, 600);
 	while (1)
 	{
+        //一些简单的注释，逻辑很简单不在赘述
 		int status = MLX90640_GetFrameData(MLX90640_ADDR, frame);  //读取一帧原始数据
 		if (status < 0)
 		{
@@ -65,7 +67,7 @@ int main(int argc, char **argv)
 
 		MLX90640_CalculateTo(frame, &mlx90640, emissivity , tr, mlx90640To);            //计算像素点温度
 
-        // 归一化温度到0~255
+        // 这个注意一点，就是我们显示的色彩是相对的温度值，各个颜色所代表的并不是准确的绝对温度值
         float minT = mlx90640To[0], maxT = mlx90640To[0];
         for (int i = 1; i < 768; ++i) {
             if (mlx90640To[i] < minT) minT = mlx90640To[i];
@@ -80,15 +82,15 @@ int main(int argc, char **argv)
             for (int j = 0; j < 32; ++j) {
                 int idx = i * 32 + j;
                 float t = mlx90640To[idx];
-                uint8_t gray = static_cast<uint8_t>(255.0f * (t - minT) / range);
+                uint8_t gray = static_cast<uint8_t>(255.0f * (t - minT) / range);       // 看到没，这就用的是相对温差来定温度
                 uint8_t r, g, b;
                 GrayToPseColor(0, gray, r, g, b); // 0: 伪彩色方法
                 img.at<cv::Vec3b>(i, j) = cv::Vec3b(b, g, r); // OpenCV为BGR
             }
         }
-        // 插值放大
+        // 插值放大，这个相关的算法可以进一步改进
         cv::Mat img_big;
-        cv::resize(img, img_big, cv::Size(320, 240), 0, 0, cv::INTER_CUBIC);
+        cv::resize(img, img_big, cv::Size(320, 240), 0, 0, cv::INTER_CUBIC);       //具体来讲插值就是这一步，可以换INTER_NEAREST、INTER_LINEAR、INTER_LANCZOS4
         cv::imshow("MLX90640 Thermal", img_big);
         cv::waitKey(1);
 
