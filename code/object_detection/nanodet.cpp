@@ -42,6 +42,17 @@ int activation_function_softmax(const _Tp* src, _Tp* dst, int length)
 
 
 static void generate_grid_center_priors(const int input_height, const int input_width, std::vector<int>& strides, std::vector<CenterPrior>& center_priors)
+/**
+ * @brief 生成目标检测中多尺度特征图的网格中心先验坐标
+ * 
+ * 该函数遍历不同尺度的特征图(stride)，为每个特征图上的每个位置生成一个中心先验点。
+ * 中心先验点记录了其在特征图上的坐标位置和对应的步长(下采样率)。
+ * 
+ * @param[in] input_height 输入图像高度
+ * @param[in] input_width 输入图像宽度
+ * @param[in] strides 包含多个步长值的向量(如[8,16,32])，表示不同特征图的下采样率
+ * @param[out] center_priors 输出的中心先验点容器，将填充CenterPrior结构体
+ */
 {
     for (int i = 0; i < (int)strides.size(); i++)
     {

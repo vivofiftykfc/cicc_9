@@ -261,10 +261,10 @@ int webcam_demo(NanoDet& detector, int cam_id)
     {
         cap >> image;
         object_rect effect_roi;
-        cv::Mat resized_img;
-        resize_uniform(image, resized_img, cv::Size(width, height), effect_roi);
-        auto results = detector.detect(resized_img, 0.4, 0.5);
-        draw_bboxes(image, results, effect_roi);
+        cv::Mat resized_img;        
+        resize_uniform(image, resized_img, cv::Size(width, height), effect_roi); //调整输入大小，宽高可以自主设定
+        auto results = detector.detect(resized_img, 0.4, 0.5);     //检测，后面的0.4和0.5是阈值
+        draw_bboxes(image, results, effect_roi);        //打框
         cv::waitKey(1);
     }
     return 0;
@@ -327,13 +327,16 @@ int benchmark(NanoDet& detector)
 
 int main(int argc, char** argv)
 {
-    if (argc != 3)
+    if (argc != 3)      //这个用到的是你命令行输入参数，就是main括号里面的，这个是名领
+    // 不用管 这是检测输入是否是要求的参数的
     {
         fprintf(stderr, "usage: %s [mode] [path]. \n For webcam mode=0, path is cam id; \n For image demo, mode=1, path=xxx/xxx/*.jpg; \n For video, mode=2; \n For benchmark, mode=3 path=0.\n", argv[0]);
         return -1;
     }
+    //载入参数
     NanoDet detector = NanoDet("./nanodet.param", "./nanodet.bin", false);
     int mode = atoi(argv[1]);
+    //选择模式
     switch (mode)
     {
     case 0:{
