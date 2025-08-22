@@ -3,33 +3,34 @@
 ## 文件树结构
 
 ```
-├── get_heat                                     # 热成像处理模块
-│   ├── functions                                # 热成像功能实现源码
-│   │   ├── MLX90640_API.cpp                     # MLX90640红外传感器API接口实现
-│   │   ├── MLX90640_API.o                       # 编译生成的API目标文件
-│   │   ├── MLX90640_I2C_Driver.cpp              # I2C通信驱动实现
-│   │   ├── MLX90640_I2C_Driver.o                # 编译生成的I2C驱动目标文件
-│   │   ├── pseudo_color.cpp                     # 温度数据伪彩色图像转换逻辑
-│   │   └── pseudo_color.o                       # 伪彩色转换目标文件
-│   ├── headers                                  # 头文件目录
-│   │   ├── MLX90640_API.h                       # 红外传感器API声明
-│   │   ├── MLX90640_I2C_Driver.h                # I2C驱动函数声明
-│   │   └── pseudo_color.h                       # 伪彩色转换函数声明
-│   ├── main.cpp                                 # 热成像模块主程序
-│   ├── main.o                                   # 主程序编译目标文件
-│   ├── makefile                                 # 编译规则文件
-│   └── mlx_app                                  # 热成像应用程序可执行文件
-│   
-├── object_detection                             # 目标检测模块
-│   ├── CMakeLists.txt                         
-│   ├── build
-│   │   ├── ...                               
-│   │   ├── nanodet.bin
-│   │   ├── nanodet.param						 # 权重与参数
-│   │   └── nanodet		                         # 目标检测可执行文件
-│   ├── main.cpp                                 # 目标检测主程序（视频捕获与推理入口）
-│   ├── nanodet.cpp                              # Nanodet轻量级目标检测算法实现
-│   └── nanodet.h                              
+├── fire_detection_system
+│   ├── CMakeLists.txt           # CMake 编译配置
+│   ├── fire_detection_system.cpp# 主控制程序
+│   ├── thermal_module.h         # 热像图模块头文件
+│   ├── thermal_module.cpp       # 热像图模块实现
+│   ├── detection_module.h       # 目标检测模块头文件
+│   └── detection_module.cpp     # 目标检测模块实现
+│   ├── get_heat                                     # 热成像处理模块
+│   │   ├── functions                                # 热成像功能实现源码
+│   │   │   ├── MLX90640_API.cpp                     # MLX90640红外传感器API接口实现
+│   │   │   ├── MLX90640_I2C_Driver.cpp              # I2C通信驱动实现
+│   │   │   └── pseudo_color.cpp                     # 温度数据伪彩色图像转换逻辑
+│   │   ├── headers                                  # 头文件目录
+│   │   │   ├── MLX90640_API.h                       # 红外传感器API声明
+│   │   │   ├── MLX90640_I2C_Driver.h                # I2C驱动函数声明
+│   │   │   └── pseudo_color.h                       # 伪彩色转换函数声明
+│   │   ├── main.cpp                                 # 热成像模块主程序
+│   │   ├── makefile                                 # 测试编译规则文件
+│   │   └── mlx_app                                  # 热成像应用程序可执行文件│   
+├── object_detection                             # 目标检测模块                 
+│   │   ├── build
+│   │   │   ├── ...                               
+│   │   │   ├── nanodet.bin
+│   │   │   ├── nanodet.param						 # 权重与参数
+│   │   │   └── nanodet		                         # 目标检测可执行文件
+│   │   ├── main.cpp                                 # 测试目标检测主程序（视频捕获与推理入口）
+│   │   ├── nanodet.cpp                              # Nanodet轻量级目标检测算法实现
+│   │   └── nanodet.h                              
 │   
 ├── slaver_core_for_ultrasound                   # 超声避障模块（飞腾派双核协同）
 │   ├── openamp_core0.elf                        # 从核可执行文件（主核通过OpenAMP加载）
@@ -59,23 +60,13 @@
 └── 工程文件结构.txt 
 ```
 
-## 项目介绍
+## 超声避障（slaver_core_for_ultrasound）
 
-#### 超声避障（slaver_core_for_ultrasound）
+### 模块介绍
 
 利用OpenAMP开源项目及rpmsg通信协议，实现主核与从核之间的数据传输。在主核程序启动时，通过/dev/rpmsg0发送测距指令，从核通过UART2接口与MB1043交互，实现数据采集与解析，再返回距离数据到主核，为下一步无人机飞行提供决策依据，形成数据处理闭环。
 
-#### 目标检测（object_detection）
-
-主核配置并运行Phytium-Pi-OS系统，配置ncnn框架与opencv库，利用并改进轻量级目标检测算法nanodet，进行视频数据的捕获与处理，识别场景中的各种物体，为无人机飞行决策提供依据。
-
-#### 热成像（get_heat）
-
-系统利用MLX90640红外传感器实现热成像。利用迈来芯官方所给固件库进行在飞腾派上的移植，同时在通过红外传感器获取温度数据后使用插值算法与伪彩色转换，将其转化为温度矩阵和热像图并显示在屏幕上，为无人机预警提供依据。
-
-## 使用方法
-
-#### 超声避障（slaver_core_for_ultrasound）
+### 使用方法
 
 在支持openamp`（linux+baremetal）`的系统镜像下测试：
 
@@ -89,12 +80,45 @@ modprobe rpmsg_char
 
 然后编译运行`rpmsg.c`文件即可测试
 
-#### 目标检测（object_detection）
+## 火灾识别（fire_detection_system）
 
-本项目依赖opencv库和ncnn框架
+### 模块简介
 
-进入build目录，运行`sudo ./nanodet 0 0`即可测试。
+本模块集成了热像图检测和目标检测功能，主要特性：
 
-#### 热成像（get_heat）
+- 热像图和目标检测分别封装为 `ThermalModule` 与 `DetectionModule` 类  
+- 支持运行时通过交互式菜单动态切换检测模式  
+- 自动完成模块初始化、运行循环及资源清理  
 
-直接`sudo ./mlx_app`
+### 依赖
+
+- CMake ≥ 3.4  
+- C++11 编译器 (g++, clang++ 或 MSVC)  
+- OpenCV  
+- ncnn  
+- OpenMP  
+
+### 编译
+
+```bash
+mkdir -p build && cd build
+cmake ..
+make -j$(nproc)
+```
+
+编译完成后会生成可执行文件 `FireDetectionSystem`。
+
+### 运行
+
+```bash
+# Linux 下可能需要 sudo 权限以访问摄像头
+sudo ./FireDetectionSystem
+```
+
+启动后，控制台将显示菜单：
+
+- 输入 `t` 切换到热像图模式  
+- 输入 `d` 切换到目标检测模式  
+- 输入 `h` 显示帮助菜单  
+- 输入 `q` 退出系统  
+- 在检测模式中按 `ESC` 返回主菜单  

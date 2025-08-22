@@ -40,3 +40,15 @@ int slave00_rpmsg_echo_process(void);
 #define MB1043_MAX_DIST     500
 #define MB1043_UART_ID     2
 /* 以上yd新增部分 */
+
+/* 以下yd新增决策部分 */
+/* 决策阈值定义 */
+#define DANGER_DISTANCE     150    /* 危险距离(急停) */
+#define WARNING_DISTANCE    400   /* 警告距离(减速) */
+
+/* 决策结果定义 */
+#define DECISION_SAFE       0     /* 安全距离 */
+#define DECISION_SLOW_DOWN  1     /* 需要减速 */
+#define DECISION_STOP       2     /* 需要急停 */
+#define DECISION_ERROR      3     /* 传感器错误 */
+/* 以上yd新增决策部分 */

@@ -1,30 +1,31 @@
-├── get_heat                                      # 热成像处理模块
-│   ├── functions                                # 热成像功能实现源码
-│   │   ├── MLX90640_API.cpp                     # MLX90640红外传感器API接口实现
-│   │   ├── MLX90640_API.o                       # 编译生成的API目标文件
-│   │   ├── MLX90640_I2C_Driver.cpp              # I2C通信驱动实现
-│   │   ├── MLX90640_I2C_Driver.o                # 编译生成的I2C驱动目标文件
-│   │   ├── pseudo_color.cpp                     # 温度数据伪彩色图像转换逻辑
-│   │   └── pseudo_color.o                       # 伪彩色转换目标文件
-│   ├── headers                                  # 头文件目录
-│   │   ├── MLX90640_API.h                       # 红外传感器API声明
-│   │   ├── MLX90640_I2C_Driver.h                # I2C驱动函数声明
-│   │   └── pseudo_color.h                       # 伪彩色转换函数声明
-│   ├── main.cpp                                 # 热成像模块主程序
-│   ├── main.o                                   # 主程序编译目标文件
-│   ├── makefile                                 # 编译规则文件
-│   └── mlx_app                                  # 热成像应用程序可执行文件
-│   
-├── object_detection                             # 目标检测模块
-│   ├── CMakeLists.txt                         
-│   ├── build
-│   │   ├── ...                               
-│   │   ├── nanodet.bin
-│   │   ├── nanodet.param		# 权重与参数
-│   │   └── nanodet		                       # 目标检测可执行文件
-│   ├── main.cpp                                 # 目标检测主程序（视频捕获与推理入口）
-│   ├── nanodet.cpp                              # Nanodet轻量级目标检测算法实现
-│   └── nanodet.h                              
+├── fire_detection_system
+│   ├── CMakeLists.txt           # CMake 编译配置
+│   ├── fire_detection_system.cpp# 主控制程序
+│   ├── thermal_module.h         # 热像图模块头文件
+│   ├── thermal_module.cpp       # 热像图模块实现
+│   ├── detection_module.h       # 目标检测模块头文件
+│   └── detection_module.cpp     # 目标检测模块实现
+│   ├── get_heat                                     # 热成像处理模块
+│   │   ├── functions                                # 热成像功能实现源码
+│   │   │   ├── MLX90640_API.cpp                     # MLX90640红外传感器API接口实现
+│   │   │   ├── MLX90640_I2C_Driver.cpp              # I2C通信驱动实现
+│   │   │   └── pseudo_color.cpp                     # 温度数据伪彩色图像转换逻辑
+│   │   ├── headers                                  # 头文件目录
+│   │   │   ├── MLX90640_API.h                       # 红外传感器API声明
+│   │   │   ├── MLX90640_I2C_Driver.h                # I2C驱动函数声明
+│   │   │   └── pseudo_color.h                       # 伪彩色转换函数声明
+│   │   ├── main.cpp                                 # 热成像模块主程序
+│   │   ├── makefile                                 # 测试编译规则文件
+│   │   └── mlx_app                                  # 热成像应用程序可执行文件│   
+├── object_detection                             # 目标检测模块                 
+│   │   ├── build
+│   │   │   ├── ...                               
+│   │   │   ├── nanodet.bin
+│   │   │   ├── nanodet.param						 # 权重与参数
+│   │   │   └── nanodet		                         # 目标检测可执行文件
+│   │   ├── main.cpp                                 # 测试目标检测主程序（视频捕获与推理入口）
+│   │   ├── nanodet.cpp                              # Nanodet轻量级目标检测算法实现
+│   │   └── nanodet.h                              
 │   
 ├── slaver_core_for_ultrasound                   # 超声避障模块（飞腾派双核协同）
 │   ├── openamp_core0.elf                        # 从核可执行文件（主核通过OpenAMP加载）

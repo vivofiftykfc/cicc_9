@@ -50,106 +50,106 @@
 #include <stdint.h> 
 #include "slaver_00_example.h"
 /************************** Constant Definitions *****************************/
-// Debug宏定义，便于统一调试输出
 #define     SLAVE_DEBUG_TAG "    SLAVE_00"
 #define     SLAVE_DEBUG_I(format, ...) FT_DEBUG_PRINT_I( SLAVE_DEBUG_TAG, format, ##__VA_ARGS__)
 #define     SLAVE_DEBUG_W(format, ...) FT_DEBUG_PRINT_W( SLAVE_DEBUG_TAG, format, ##__VA_ARGS__)
 #define     SLAVE_DEBUG_E(format, ...) FT_DEBUG_PRINT_E( SLAVE_DEBUG_TAG, format, ##__VA_ARGS__)
 
-// MAX_DATA_LENGTH: 定义协议数据最大长度（RPMSG缓冲区一半），用于协议数据收发
-#define MAX_DATA_LENGTH       (RPMSG_BUFFER_SIZE / 2)
+#define MAX_DATA_LENGTH       (RPMSG_BUFFER_SIZE - sizeof(uint32_t) - sizeof(uint16_t))
 
-// 协议命令字定义，主从通信时用于区分不同操作
 #define DEVICE_CORE_START     0x0001U /* 开始任务 */
 #define DEVICE_CORE_SHUTDOWN  0x0002U /* 关闭核心 */
 #define DEVICE_CORE_CHECK     0x0003U /* 检查消息 */
-// DEVICE_CORE_GET_DISTANCE 由用户自定义，读取距离
-
 /************************** Variable Definitions *****************************/
-// shutdown_req: 关机请求标志，主控下发DEVICE_CORE_SHUTDOWN命令时置1
 static volatile int shutdown_req = 0;
 
 /*******************例程全局变量***********************************************/
-// remoteproc_slave_00: 本核remoteproc实例，代表本核的处理器资源
 struct remoteproc remoteproc_slave_00;
-// rpdev_slave_00: 本核RPMSG设备指针，用于主从消息通信
 static struct rpmsg_device *rpdev_slave_00 = NULL;
 
-/* 协议数据结构体，包含命令字、数据长度、数据内容 */
+/* 新增：与主核严格匹配的响应结构体（256字节） */
+typedef struct __attribute__((packed)) {
+    uint32_t command;      // 4字节
+    uint16_t length;       // 2字节
+    uint8_t status;        // 1字节
+    float distance;        // 4字节
+    uint8_t decision;      // 1字节
+    uint8_t padding[244];  // 填充剩余244字节（256-12）
+} DistanceResponse;
+
+/* 协议数据结构 */
 typedef struct {
     uint32_t command; /* 命令字，占4个字节 */
     uint16_t length;  /* 数据长度，占2个字节 */
     char data[MAX_DATA_LENGTH];       /* 数据内容，动态长度 */
 } ProtocolData;
 
-// protocol_data: 用于存放当前解析的协议数据
 static ProtocolData protocol_data;
 
 /************************** 资源表定义，与linux协商一致 **********/
-// resources: 远程处理器资源表，描述本核与主核协商的共享内存、vring等信息
 static struct remote_resource_table __resource resources __attribute__((used)) = {
-    /* Version */
-    1,
-    /* NUmber of table entries */
-    NUM_TABLE_ENTRIES,
-    /* reserved fields */
-    {0, 0,},
-    /* Offsets of rsc entries */
-    {
-        offsetof(struct remote_resource_table, rpmsg_vdev),
-    },
-    /* Virtio device entry */
-    {
-        RSC_VDEV, VIRTIO_ID_RPMSG_, VDEV_NOTIFYID, RPMSG_IPU_C0_FEATURES, 0, 0, 0,
-        NUM_VRINGS, {0, 0},
-    },
+	/* Version */
+	1,
+
+	/* NUmber of table entries */
+	NUM_TABLE_ENTRIES,
+	/* reserved fields */
+	{0, 0,},
+
+	/* Offsets of rsc entries */
+	{
+	 offsetof(struct remote_resource_table, rpmsg_vdev),
+	},
+
+	/* Virtio device entry */
+	{
+	 RSC_VDEV, VIRTIO_ID_RPMSG_, VDEV_NOTIFYID, RPMSG_IPU_C0_FEATURES, 0, 0, 0,
+	 NUM_VRINGS, {0, 0},
+	},
     
-    /* Vring rsc entry - part of vdev rsc entry */
-    {SLAVE00_TX_VRING_ADDR, VRING_ALIGN, SLAVE00_VRING_NUM, 1, 0},
-    {SLAVE00_RX_VRING_ADDR, VRING_ALIGN, SLAVE00_VRING_NUM, 2, 0},
+	/* Vring rsc entry - part of vdev rsc entry */
+	{SLAVE00_TX_VRING_ADDR, VRING_ALIGN, SLAVE00_VRING_NUM, 1, 0},
+	{SLAVE00_RX_VRING_ADDR, VRING_ALIGN, SLAVE00_VRING_NUM, 2, 0},
 };
 
 /********** 共享内存定义，与linux协商一致 **********/
-// poll_phys_addr: 共享内存物理地址
 static metal_phys_addr_t poll_phys_addr = SLAVE00_KICK_IO_ADDR;
-// kick_driver_00: 共享内存设备描述，包含中断、内存等信息
 struct metal_device kick_driver_00 = {
     .name = SLAVE_00_KICK_DEV_NAME,
-    .bus = NULL,
+	.bus = NULL,
     .num_regions = 1,
-    .regions = {
-        {
-            .virt = (void *)SLAVE00_KICK_IO_ADDR,
-            .physmap = &poll_phys_addr,
-            .size = 0x1000,
-            .page_shift = -1UL,
-            .page_mask = -1UL,
-            .mem_flags = SLAVE00_SOURCE_TABLE_ATTRIBUTE,
-            .ops = {NULL},
-        }
-    },
+	.regions = {
+		{
+			.virt = (void *)SLAVE00_KICK_IO_ADDR,
+			.physmap = &poll_phys_addr,
+			.size = 0x1000,
+			.page_shift = -1UL,
+			.page_mask = -1UL,
+			.mem_flags = SLAVE00_SOURCE_TABLE_ATTRIBUTE,
+			.ops = {NULL},
+		}
+	},
     .irq_num = 1,/* Number of IRQs per device */
-    .irq_info = (void *)SLAVE_00_SGI,
+	.irq_info = (void *)SLAVE_00_SGI,
 } ;
 
-// slave_00_priv: remoteproc私有参数，描述kick、共享内存等
 struct remoteproc_priv slave_00_priv = {
     .kick_dev_name =           SLAVE_00_KICK_DEV_NAME  ,
-    .kick_dev_bus_name =        KICK_BUS_NAME ,
+	.kick_dev_bus_name =        KICK_BUS_NAME ,
     .cpu_id        =  MASTER_CORE_MASK,/* 给所有core发送中断 */
-    .src_table_attribute = SLAVE00_SOURCE_TABLE_ATTRIBUTE ,
-    /* |rx vring|tx vring|share buffer| */
-    .share_mem_va = SLAVE00_SHARE_MEM_ADDR ,
-    .share_mem_pa = SLAVE00_SHARE_MEM_ADDR ,
-    .share_buffer_offset = SLAVE00_VRING_SIZE ,
-    .share_mem_size = SLAVE00_SHARE_MEM_SIZE ,
-    .share_mem_attribute = SLAVE00_SHARE_BUFFER_ATTRIBUTE
+
+	.src_table_attribute = SLAVE00_SOURCE_TABLE_ATTRIBUTE ,
+	
+	/* |rx vring|tx vring|share buffer| */
+	.share_mem_va = SLAVE00_SHARE_MEM_ADDR ,
+	.share_mem_pa = SLAVE00_SHARE_MEM_ADDR ,
+	.share_buffer_offset = SLAVE00_VRING_SIZE ,
+	.share_mem_size = SLAVE00_SHARE_MEM_SIZE ,
+	.share_mem_attribute = SLAVE00_SHARE_BUFFER_ATTRIBUTE
 } ;
 
 /* 以下ydzhw新增MB1043传感器相关静态变量 */
-// uart_inst: MB1043传感器所用UART实例
 static FPl011 uart_inst;
-// mb1043_initialized: MB1043 UART初始化标志
 static int mb1043_initialized = 0;
 /* 以上ydzhw新增MB1043传感器相关静态变量 */
 // 假设UART2用于MB1043（根据硬件手册调整）
@@ -166,16 +166,7 @@ static int mb1043_initialized = 0;
 
 
 /* 以下yd、zhw新增MB1043相关静态函数 */
-/*
- * @brief  读取MB1043超声波传感器距离值，首次调用时自动初始化UART
- * @param  distance [out] 解析得到的距离值（单位：cm）
- * @return 0成功，负值失败
- * 逻辑说明：
- *   - 首次调用时初始化UART，设置波特率、数据位、校验位、停止位
- *   - 轮询读取串口数据，遇到回车符结束，超时则报错
- *   - 解析原始数据为距离值
- */
-static int mb1043_read_distance(float *distance)
+static int mb1043_read_distance(float *distance, uint8_t *decision)
 {
     FError ret;
     char buffer[10] = {0};
@@ -207,7 +198,6 @@ static int mb1043_read_distance(float *distance)
         memset(&uart_inst, 0, sizeof(FPl011));
 
         /* 初始化UART硬件 */
-        //这几个函数用的都是他官方sdk包里面给的初始化函数，那些FP开头的
         ret = FPl011CfgInitialize(&uart_inst, &config_value);
         if (ret != FT_SUCCESS) 
         {
@@ -231,7 +221,7 @@ static int mb1043_read_distance(float *distance)
         mb1043_initialized = 1;
     }
 
-    /* 轮询读取数据，直到遇到回车或超时 */
+    /* 轮询读取数据 */
     while (bytes_read < sizeof(buffer) - 1) 
     {
         u32 recv_cnt = FPl011Receive(&uart_inst, &buffer[bytes_read], 1);
@@ -246,35 +236,35 @@ static int mb1043_read_distance(float *distance)
         if (--timeout == 0) 
         {
             SLAVE_DEBUG_E("MB1043 read timeout");
-            break;
+            *decision = DECISION_ERROR;
+            return -1;
         }
         fsleep_millisec(1);
     }
 
-    /* 数据校验与解析 */
+    /* 数据校验 */
     buffer[bytes_read] = '\0';
     printf("Raw data: %s\n", buffer);
 
-    /* 解析距离值，假设格式为Rxxxx\r */
+    /* 解析距离值 */
     *distance = (buffer[1]-'0')*1000 + (buffer[2]-'0')*100 + (buffer[3]-'0')*10 + (buffer[4]-'0');
     *distance /= 10.0f;
+    
+    /* 新增决策逻辑 */
+    if (*distance < DANGER_DISTANCE) {
+        *decision = DECISION_STOP;
+    } else if (*distance < WARNING_DISTANCE) {
+        *decision = DECISION_SLOW_DOWN;
+    } else {
+        *decision = DECISION_SAFE;
+    }
 
     printf("Parsed distance: %.3f\n", *distance);
 
     return 0;
 }
 /* 以上yd、zhw新增MB1043相关静态函数 */
-/*
- * @brief  解析主控下发的协议数据，提取命令字、数据长度和内容
- * @param  input      输入数据指针
- * @param  input_size 输入数据长度
- * @param  output     输出协议结构体
- * @return 0成功，负值失败
- * 逻辑说明：
- *   - 检查最小长度
- *   - 提取命令字、数据长度、数据内容
- *   - 检查长度合法性
- */
+/*协议解析接口*/
 int parse_protocol_data(const char* input, size_t input_size, ProtocolData* output) 
 {
     int i = 0;
@@ -302,16 +292,7 @@ int parse_protocol_data(const char* input, size_t input_size, ProtocolData* outp
     return 0; /* 解析成功 */
 }
 
-/*
- * @brief  组装协议数据，便于回传主控
- * @param  input      输入协议结构体
- * @param  output     输出数据缓冲区
- * @param  output_size 输出数据长度
- * @return 0成功，负值失败
- * 逻辑说明：
- *   - 检查长度合法性
- *   - 组装命令字、数据长度、数据内容
- */
+/*协议组装接口*/
 int assemble_protocol_data(const ProtocolData* input, char* output, size_t* output_size) 
 {
     /* 检查预期的输出大小是否超出最大长度 */
@@ -336,19 +317,6 @@ int assemble_protocol_data(const ProtocolData* input, char* output, size_t* outp
 /*-----------------------------------------------------------------------------*
  *  RPMSG endpoint callbacks
  *-----------------------------------------------------------------------------*/
-/*
- * @brief  RPMSG端点回调，处理主控发来的消息
- * @param  ept   RPMSG端点
- * @param  data  收到的数据
- * @param  len   数据长度
- * @param  src   源地址
- * @param  priv  私有数据
- * @return always RPMSG_SUCCESS
- * 逻辑说明：
- *   - 解析协议数据
- *   - 根据命令字分发处理（启动、关机、检查、读取距离等）
- *   - 回应主控请求
- */
 static int rpmsg_endpoint_cb(struct rpmsg_endpoint *ept, void *data, size_t len, uint32_t src, void *priv)
 {
     (void)priv;
@@ -360,7 +328,6 @@ static int rpmsg_endpoint_cb(struct rpmsg_endpoint *ept, void *data, size_t len,
     SLAVE_DEBUG_I("src:0x%x",src);
     ept->dest_addr = src;
 
-    // 解析协议数据
     ret = parse_protocol_data((char *)data, len, &protocol_data);
     if(ret != 0)
     {
@@ -372,18 +339,16 @@ static int rpmsg_endpoint_cb(struct rpmsg_endpoint *ept, void *data, size_t len,
     {
         case DEVICE_CORE_START:
         {
-            // 启动命令，预留
             break;
         }
         case DEVICE_CORE_SHUTDOWN:
         {
-            // 关机命令，设置关机标志
             shutdown_req = 1;
             break;
         }
         case DEVICE_CORE_CHECK:
         {
-            // 检查命令，回传收到的数据
+            /* Send temp_data back to master */
             /* 请勿直接对data指针对应的内存进行写操作，操作vring中remoteproc发送通道分配的内存，引发错误的问题*/
             ret = rpmsg_send(ept, &protocol_data, len);
             if (ret < 0)
@@ -393,44 +358,31 @@ static int rpmsg_endpoint_cb(struct rpmsg_endpoint *ept, void *data, size_t len,
             }
             break;
         }
-        /* 以下yd新增距离读取case */
+	 /* 以下yd新增距离读取case */
         case DEVICE_CORE_GET_DISTANCE:
         {
-            // 读取MB1043距离并回传
-            struct {
-                uint32_t command;
-                uint16_t length;
-                uint8_t status;
-                float distance;
-                uint8_t reserved;
-            } response = {
+        DistanceResponse response = {
                 .command = DEVICE_CORE_GET_DISTANCE,
-                .length = 6,
-                .reserved = 0
-            };
-            
-            response.status = mb1043_read_distance(&response.distance);
+                .length = sizeof(response) - 4,
+                .status = 0,
+                .decision = 0
+        };
+            memset(response.padding, 0, sizeof(response.padding));
+            response.status = mb1043_read_distance(&response.distance, &response.decision);
             ret = rpmsg_send(ept, &response, sizeof(response));
             if (ret < 0) {
-                SLAVE_DEBUG_E("Send distance failed");
+                SLAVE_DEBUG_E("Send failed: %d", ret);
             }
             break;
         }
-        /* 以上yd新增距离读取case */
+	 /* 以上yd新增距离读取case */
         default:
-            // 未知命令，忽略
             break;
     }
 
     return RPMSG_SUCCESS;
 }
 
-/*
- * @brief  RPMSG端点解绑回调，主控销毁端点时触发
- * @param  ept   RPMSG端点
- * 逻辑说明：
- *   - 设置关机请求标志
- */
 static void rpmsg_service_unbind(struct rpmsg_endpoint *ept)
 {
     (void)ept;
@@ -441,16 +393,6 @@ static void rpmsg_service_unbind(struct rpmsg_endpoint *ept)
 /*-----------------------------------------------------------------------------*
  *  Application
  *-----------------------------------------------------------------------------*/
-/*
- * @brief  RPMSG主循环应用，创建端点并轮询处理消息
- * @param  rdev  RPMSG设备
- * @param  priv  私有数据
- * @return 0成功，负值失败
- * 逻辑说明：
- *   - 创建RPMSG端点
- *   - 进入主循环，轮询处理消息
- *   - 检测到关机请求或stop_flag后退出
- */
 static int FRpmsgEchoApp(struct rpmsg_device *rdev, void *priv)
 {
     int ret = 0;
@@ -468,14 +410,13 @@ static int FRpmsgEchoApp(struct rpmsg_device *rdev, void *priv)
 
     SLAVE_DEBUG_I("Successfully created rpmsg endpoint.\r\n");
 
-    // 主循环，轮询处理RPMSG消息
     while (1)
     {
         platform_poll(priv);
         /* we got a shutdown request, exit */
         if (shutdown_req || rproc_get_stop_flag())
         {
-            rproc_clear_stop_flag();
+	        rproc_clear_stop_flag();
             break;
         }
     }
@@ -485,15 +426,9 @@ static int FRpmsgEchoApp(struct rpmsg_device *rdev, void *priv)
     return ret;
 }
 
-/*
- * @brief  从核应用初始化，完成remoteproc、资源表、共享内存、RPMSG设备等初始化
- * @return 0成功，负值失败
- * 逻辑说明：
- *   - 初始化系统资源
- *   - 创建remoteproc实例
- *   - 配置资源表、共享内存
- *   - 创建RPMSG虚拟设备
- */
+/*-----------------------------------------------------------------------------*
+ *  Application entry point
+ *-----------------------------------------------------------------------------*/
 int slave_init(void)
 {
     init_system();  // Initialize the system resources and environment
@@ -532,14 +467,6 @@ int slave_init(void)
     return 0 ;   
 }
 
-/*
- * @brief  关闭串口并释放相关资源
- * @param  uart_p  UART实例指针
- * @return FT_SUCCESS
- * 逻辑说明：
- *   - 关闭UART相关功能
- *   - 清除is_ready标志
- */
 static FError FSerialPollDeinit(FPl011 *uart_p)
 {
     FError ret;
@@ -556,14 +483,6 @@ static FError FSerialPollDeinit(FPl011 *uart_p)
     return FT_SUCCESS;
 }
 
-/*
- * @brief  从核主流程入口，完成初始化、主循环、资源释放、关机等
- * @return 0
- * 逻辑说明：
- *   - 初始化从核应用
- *   - 进入RPMSG主循环
- *   - 释放资源，关闭串口，关机
- */
 int slave00_rpmsg_echo_process(void)
 {
     int ret = 0;
